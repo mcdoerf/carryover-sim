@@ -126,7 +126,7 @@ first_capture_counts <- function(data){
     sum(unlist(data$counts[[2]])[matches])
   })
   
- return(list(b = b, a = a))
+ return(list(b = unname(b), a = unname(a)))
   
 }
 

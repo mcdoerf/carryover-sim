@@ -16,13 +16,13 @@ for (f in sort(list.files(here::here("R"), pattern = "\\.R$", full.names = TRUE)
 #Sigma[1,1] = (1 - p_caught)(1 - psi)/psi, p_caught = P(caught by one of the K streams).
 set.seed(1)
 K <- 3; psi <- 0.1
-theta1 <- runif(2^K - 1, .2, .7)
-theta2 <- runif(2^K - 1, .2, .7)
+chain1 <- runif(K, .2, .7)
+chain2 <- runif(K, .2, .7)
 carry  <- c(0, 0, 1)
-theta2[chain_pos(K)][carry == 1] <- theta1[chain_pos(K)][carry == 1]
+chain1[carry == 1] <- chain2[carry == 1]
 
-S <- true_sigma_NN(theta1, theta2, 2e4, 3e4, K, psi, carry)
-p_caught <- 1 - prod(1 - theta1[chain_pos(K)])
+S <- sigma_NN(chain1, chain2, 2e4, 3e4, K, psi, carry)
+p_caught <- 1 - prod(1 - chain1)
 c(function_value = S[1, 1], exact = (1 - p_caught) * (1 - psi) / psi)   # should agree
 
 #2) Compare with the full information matrix --------------------------------
@@ -61,7 +61,9 @@ full_sigma_NN <- function(theta1, theta2, N1, N2, K, psi, carry) {
 for (carry in list(c(1, 0, 0), c(0, 1, 0), c(0, 0, 1), c(1, 0, 1))) {
   th2 <- runif(2^K - 1, .2, .7)
   th2[chain_pos(K)][carry == 1] <- theta1[chain_pos(K)][carry == 1]
-  diff <- max(abs(true_sigma_NN(theta1, th2, 2e4, 3e4, K, psi, carry) -
+  ch1 <- theta1[chain_pos(K)]
+  ch2 <- th2[chain_pos(K)]
+  diff <- max(abs(true_sigma_NN(ch1, ch2, 2e4, 3e4, K, psi, carry) -
                     full_sigma_NN(theta1, th2, 2e4, 3e4, K, psi, carry)))
   cat("carry =", carry, "  max difference =", signif(diff, 2), "\n")   # should be ~1e-9
 }
@@ -80,14 +82,18 @@ carry = c(1, 0, 1)
 
 tic()
 for(i in 1:1000){
+  theta1 <- runif(2^K-1, .2, .7)
   th2 <- runif(2^K - 1, .2, .7)
   th2[chain_pos(K)][carry == 1] <- theta1[chain_pos(K)][carry == 1]
-  true_sigma_NN(theta1, th2, 2e4, 3e4, K, psi, carry)
+  ch1 <- theta1[chain_pos(K)]
+  ch2 <- th2[chain_pos(K)]
+  sigma_NN(ch1, ch2, 2e4, 3e4, K, psi, carry)
 }
 toc()
 
 tic()
 for(i in 1:1000){
+  theta1 <- runif(2^K-1, .2, .7)
   th2 <- runif(2^K - 1, .2, .7)
   th2[chain_pos(K)][carry == 1] <- theta1[chain_pos(K)][carry == 1]
   full_sigma_NN(theta1, th2, 2e4, 3e4, K, psi, carry)

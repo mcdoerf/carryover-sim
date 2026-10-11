@@ -4,21 +4,21 @@
 
 
 #1) true_sigma_NN()--------------------------------------------------------------
-#This function takes the true population level theta1, theta2, N1, N2, N_tot1,
+#This function takes true or estimated population level chain1, chain2, N1, N2, N_tot1,
 #N_tot2, and psi as input and outputs the asymptotic covariance matrix for 1/sqrt{N_1} (\hat{N}_1 - N_1),
 #1/\sqrt{N_2} (\hat{N}_2 - N_2).
 # carry is a vector of length K indicating which non-identifiable parameters carry-over from population 1.
 
-true_sigma_NN <- function(theta1, theta2, N1, N2, K, psi, carry){
+sigma_NN <- function(chain1, chain2, N1, N2, K, psi, carry){
   
   stopifnot(
     "K must be a single positive integer" =
       is.numeric(K) && length(K) == 1 && K >= 1 && K == round(K),
-    "theta1 and theta2 must be numeric vectors of length 2^K - 1" =
-      is.numeric(theta1) && is.numeric(theta2) &&
-      length(theta1) == 2^K - 1 && length(theta2) == 2^K - 1,
-    "theta1 and theta2 must lie strictly between 0 and 1 (no NAs)" =
-      !anyNA(c(theta1, theta2)) && all(theta1 > 0 & theta1 < 1) && all(theta2 > 0 & theta2 < 1),
+    "chain1 and chain2 must be numeric vectors of length K" =
+      is.numeric(chain1) && is.numeric(chain2) &&
+      length(chain1) == K && length(chain2) == K,
+    "chain1 and chain2 must lie strictly between 0 and 1 (no NAs)" =
+      !anyNA(c(chain1, chain2)) && all(chain1 > 0 & chain1 < 1) && all(chain2 > 0 & chain2 < 1),
     "N1 and N2 must be single positive numbers" =
       is.numeric(N1) && is.numeric(N2) && length(N1) == 1 && length(N2) == 1 && N1 > 0 && N2 > 0,
     "psi must be a single number in (0, 1)" =
@@ -30,7 +30,7 @@ true_sigma_NN <- function(theta1, theta2, N1, N2, K, psi, carry){
   shared <- carry == 1
   stopifnot(
     "carried-over chain parameters must be equal in theta1 and theta2" =
-      isTRUE(all.equal(theta1[chain_pos(K)][shared], theta2[chain_pos(K)][shared]))
+      isTRUE(all.equal(chain1[shared], chain2[shared]))
   )
   
   lambda1 <- N1 / (N1 + N2)
@@ -38,10 +38,6 @@ true_sigma_NN <- function(theta1, theta2, N1, N2, K, psi, carry){
   lambda2 <- 1 - lambda1
   
   #Extract the non-identifiable chain parameters
-  
-  chain1 <- theta1[chain_pos(K)]
-  
-  chain2 <- theta2[chain_pos(K)]
   
   betaU <- c(chain1, chain2[carry == 0])
   
