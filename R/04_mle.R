@@ -238,8 +238,8 @@ ident_mle <- function(data){
   }
   
   return(list(
-    hat_thetaI1 <- id1[-(chain_pos(K))],
-    hat_thetaI2 <- id2[-(chain_pos(K))]
+    hat_thetaI1 =  id1[-(chain_pos(K))],
+    hat_thetaI2 = id2[-(chain_pos(K))]
   ))
   
 }
@@ -390,4 +390,6 @@ tidy.carryover_fit <- function(x, level = 0.95,...){
   
 
 }
+
+
 

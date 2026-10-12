@@ -24,6 +24,34 @@ hist_names <- function(L, observable = TRUE){
   return(result)
 }
 
+#cond_hist_names(K).  This creates names for all conditional capture histories.  For example,
+#with K = 3, returns "null", "1", "0", "11", "10", "01", "00".
+
+cond_hist_names <- function(K) {
+  # Start with the baseline "null"
+  history_names <- "null"
+  
+  # Generate combinations for lengths 1 up to K-1
+  for (len in 1:(K - 1)) {
+    # expand.grid creates all combinations. 
+    # We pass c("1", "0") in that order to ensure reverse lexicographic sorting.
+    grid_args <- rep(list(c("1", "0")), len)
+    grid <- do.call(expand.grid, grid_args)
+    
+    # expand.grid varies the first column fastest. We reverse the column 
+    # order to make it read naturally left-to-right (e.g., "11", "10", "01", "00")
+    grid <- grid[, rev(seq_len(len)), drop = FALSE]
+    
+    # Combine the characters into single strings
+    strings <- apply(grid, 1, paste, collapse = "")
+    
+    # Append to our main vector
+    history_names <- c(history_names, strings)
+  }
+  
+  return(history_names)
+}
+
 #theta_index(j, f): returns position of theta_{j|f} in a cohort's parameter vector.
 
 theta_index <- function(j, f = integer(0)) {
