@@ -3,8 +3,8 @@
 .RData
 .Ruserdata
 usethis::use_git_ignore(c(
-  "results/",          # raw fits and simulated data
-  "sims/*/data/",
-  "sims/*/fits/",
-  "*.Rhistory", ".RData", ".Rproj.user/"
+"results/",          # raw fits and simulated data
+"sims/*/data/",
+"sims/*/fits/",
+"*.Rhistory", ".RData", ".rds", ".RDS", ".Rproj.user/"
 ))
