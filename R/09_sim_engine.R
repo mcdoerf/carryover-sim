@@ -98,92 +98,131 @@ fit_scenario <- function(sim, methods){
 
 
 
-# run_study() ------------------------------------------------------------------
-#This function loops (in parallel) over scenarios for one stage, writing one file per 
-#scenario and skipping scenarios whose output already exists.
+# run_study --------------------------------------------------------------------
+# Runs one stage ("generate" or "fit") of a simulation study over a set of
+# scenarios, writing one file per scenario and skipping scenarios whose output
+# file already exists (so interrupted runs can simply be restarted).
+#
+#   study_dir : folder containing design.rds; data/ and fits/ are created inside it
+#   stage     : "generate" (needs R, base_seed) or "fit" (needs methods)
+#   scenarios : scenario_ids to run (default: all in the design)
+#   cores     : 1 = sequential; > 1 = parallel via future (works on Windows)
+#
+# Returns (invisibly) a data frame: scenario_id, status, seconds.
 
-run_study <- function(study_dir, stage = c("generate", "fit"), scenarios = NULL, R = NULL, base_seed = NULL, methods = NULL, cores = 1){
+run_study <- function(study_dir, stage = c("generate", "fit"), scenarios = NULL,
+                      R = NULL, base_seed = NULL, methods = NULL, cores = 1) {
   
   stage <- match.arg(stage)
   
-  # ---- Setup shared by both stages -------------------------------------------
-  design_grid <- readRDS(paste0(study_dir, "/design.rds"))
+  # ---- Setup shared by both stages ------------------------------------------
+  design_grid <- readRDS(file.path(study_dir, "design.rds"))
   
   if (is.null(scenarios)) scenarios <- design_grid$scenario_id
+  stopifnot(
+    "scenarios must all be scenario_ids in the design" =
+      all(scenarios %in% design_grid$scenario_id),
+    "cores must be a positive integer" =
+      is.numeric(cores) && length(cores) == 1 && cores >= 1 && cores == round(cores)
+  )
   
-  stopifnot("scenarios must lie in scenario_id" = all(scenarios %in% design_grid$scenario_id))
-
-  
-  if (stage == "generate"){
-    stopifnot("R must be an positive integer" = is.numeric(R) && length(R) == 1 &&  R >= 1 && round(R) == R)
-    stopifnot("Base seed must be specified" = is.numeric(base_seed))
+  if (stage == "generate") {
+    stopifnot(
+      "R must be a positive integer" =
+        is.numeric(R) && length(R) == 1 && R >= 1 && R == round(R),
+      "base_seed must be a single number" =
+        is.numeric(base_seed) && length(base_seed) == 1
+    )
+  }
+  if (stage == "fit") {
+    stopifnot("methods must be a named list of functions" =
+                is.list(methods) && !is.null(names(methods)) &&
+                all(vapply(methods, is.function, logical(1))))
   }
   
-  if (stage == "fit"){
-    stopifnot("Methods must be specified" = !is.null(methods))
+  data_dir <- file.path(study_dir, "data")
+  fits_dir <- file.path(study_dir, "fits")
+  dir.create(if (stage == "generate") data_dir else fits_dir,
+             showWarnings = FALSE, recursive = TRUE)
+  
+  scenario_file <- function(dir, id) file.path(dir, sprintf("scenario_%03d.rds", id))
+  
+  # Save to a temporary name, then rename: a file with the final name is
+  # always complete, even if R crashes mid-save.
+  safe_save <- function(object, file) {
+    tmp <- paste0(file, ".tmp")
+    saveRDS(object, tmp)
+    if (!file.rename(tmp, file)) stop("could not rename ", tmp, " to ", file)
   }
   
-  data_dir <- paste0(study_dir, "/data")
-  fits_dir <- paste0(study_dir, "/fits")
-  
-  # --- One scenario, generate stage
-
-  generate_one <- function(id){
+  # ---- One scenario, generate stage -----------------------------------------
+  generate_one <- function(id) {
+    out_file <- scenario_file(data_dir, id)
+    if (file.exists(out_file)) return("skipped")
     
-    dir.create(data_dir, showWarnings = FALSE, recursive = TRUE)
-    
-    out_file <- paste0(data_dir, sprintf("/scenario_%03d.rds", id))
-    
-    if (file.exists(out_file)) { message("scenario ", id, ": exists, skipped"); return(invisible("skipped"))}
     row <- design_grid[design_grid$scenario_id == id, ]
-    
     sim <- generate_scenario(row, R = R, base_seed = base_seed)
-    
-    saveRDS(sim, file = out_file)
-    
-    message("scenario ", id, ": generated")
-    
-    invisible("done")
+    sim$created   <- Sys.time()
+    sim$r_version <- R.version.string
+    safe_save(sim, out_file)
+    "done"
   }
   
-  
-
-  # --- One scenario, fit stage
-  
-  fit_one <- function(id){
+  # ---- One scenario, fit stage ----------------------------------------------
+  fit_one <- function(id) {
+    in_file  <- scenario_file(data_dir, id)
+    out_file <- scenario_file(fits_dir, id)
+    if (file.exists(out_file)) return("skipped")
+    if (!file.exists(in_file)) stop("no data for scenario ", id, "; run the generate stage first")
     
-    dir.create(fits_dir, showWarnings = FALSE, recursive = TRUE)
-    
-    in_file <- paste0(data_dir, sprintf("/scenario_%03d.rds", id))
-    out_file <- paste0(fits_dir, sprintf("/scenario_%03d.rds", id))
-    
-    if (file.exists(out_file)) { message("scenario ", id, ": exists, skipped"); return(invisible("skipped"))}
-    
-    if (!file.exists(in_file)) {stop("generate scenario ", id, "first")}
-    
-    sim <- readRDS(in_file)
-    
-    fits <- fit_scenario(sim = sim, methods = methods)
-    
-    saveRDS(fits, out_file)
-    
-    message("scenario ", id, ": fitted")
-    
-    invisible("done")
+    sim  <- readRDS(in_file)
+    fits <- fit_scenario(sim, methods)
+    attr(fits, "created")   <- Sys.time()
+    attr(fits, "r_version") <- R.version.string
+    safe_save(fits, out_file)
+    "done"
   }
   
-  # --- Run every requested scenario
+  # ---- Wrapper: timing, error capture, progress message ---------------------
+  # An error in one scenario is recorded in the status table instead of
+  # stopping the remaining scenarios.
+  do_stage <- if (stage == "generate") generate_one else fit_one
   
-  do_one <- if (stage == "generate") generate_one else fit_one
-  
-  if (cores == 1){
-    status <- lapply(scenarios, do_one)
-  } else{
-    future::plan(future::multisession, workers = cores)
-    status <- future.apply::future_lapply(scenarios, do_one, future.seed = TRUE)
+  run_one <- function(id) {
+    t0 <- proc.time()[["elapsed"]]
+    status <- tryCatch(do_stage(id), error = function(e) paste("error:", conditionMessage(e)))
+    secs <- round(proc.time()[["elapsed"]] - t0, 1)
+    message("scenario ", id, ": ", status, " (", secs, " s)")
+    data.frame(scenario_id = id, status = status, seconds = secs)
   }
   
-  # --- Small summary of what happened
-  invisible(data.frame(scenario_id = scenarios, status = unlist(status)))
+  # ---- Run every requested scenario -----------------------------------------
+  if (cores == 1) {
+    results <- lapply(scenarios, run_one)
+  } else {
+    # Workers are fresh R sessions (always on Windows), so each loads the
+    # project's functions once, into its global environment, before its first
+    # scenario. A flag is used rather than exists("some_function") because
+    # future copies some of your functions to the workers itself, which would
+    # fool that check while others (e.g. those only called inside `methods`)
+    # are still missing.
+    r_files <- normalizePath(sort(list.files(here::here("R"), pattern = "\\.R$",
+                                             full.names = TRUE)))
+    old_plan <- future::plan(future::multisession, workers = cores)
+    on.exit(future::plan(old_plan), add = TRUE)
+    
+    results <- future.apply::future_lapply(scenarios, function(id) {
+      if (!exists(".project_loaded", envir = globalenv(), inherits = FALSE)) {
+        for (f in r_files) source(f, local = globalenv())
+        assign(".project_loaded", TRUE, envir = globalenv())
+      }
+      run_one(id)
+    }, future.seed = TRUE)
+  }
   
+  # ---- Summary ----------------------------------------------------------------
+  summary <- do.call(rbind, results)
+  n_err <- sum(startsWith(summary$status, "error"))
+  if (n_err > 0) warning(n_err, " scenario(s) failed; see the returned status table")
+  invisible(summary)
 }
