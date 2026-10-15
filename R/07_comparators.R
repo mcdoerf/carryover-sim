@@ -38,8 +38,12 @@ fit_chapman <- function(data, cohort = 2, streams = list(1, 2)) {
   N_hat <- min(max(N_tilde, nc), U)
   var_chap <- (n1. + 1) * (n.1 + 1) * n10 * n01 / ((n11 + 1)^2 * (n11 + 2))
   
+  truncated_lower = N_tilde < nc
+  truncated_upper = N_tilde > U
+  truncated       = N_tilde < nc || N_tilde > U
+  
   structure(list(
-    N_hat = N_hat, N_tilde = N_tilde, truncated = N_tilde > U, var = var_chap,
+    N_hat = N_hat, N_tilde = N_tilde, truncated = truncated, var = var_chap,
     n1. = n1., n.1 = n.1, n11 = n11, n10 = n10, n01 = n01,
     nc = nc, U = U, cohort = cohort, streams = streams,
     label = paste0(paste(streams[[1]], collapse = ""), "v", paste(streams[[2]], collapse = "")),

@@ -198,7 +198,7 @@ chain_mle <- function(fc, psi, K, carry, method = c("closed", "optim"), start = 
     list(loglik      = chain_loglik(par_hat, fc, psi, K, carry),
          converged   = converged,
          method_used = method,
-         boundary    = any(betaU < 1e-6 | betaU > 1 - 1e-6)))
+         boundary    = any(betaU < 1e-4 | betaU > 1 - 1e-4)))
 }
 
 
@@ -287,9 +287,17 @@ fit_carryover <- function(data, carry, method = c("closed", "optim"), start = NU
   truncated <- N_tilde > U
   
   #Compute the asymptotic covariance matrix
+  #If estimates of the chain parameters lie along the boundary, report NA.
   
-  Sigma_NN <- sigma_NN(chain1 = chain_est$chain1, chain2 = chain_est$chain2,
-                       N1 = N_hat[1], N2 = N_hat[2], K = K, psi = psi, carry = carry)
+  Sigma_NN <- if (isTRUE(chain_est$boundary)) {
+    matrix(NA_real_, 2, 2)
+  } else {
+    tryCatch(
+      sigma_NN(chain1 = chain_est$chain1, chain2 = chain_est$chain2,
+               N1 = N_hat[1], N2 = N_hat[2], K = K, psi = psi, carry = carry),
+      error = function(e) matrix(NA_real_, 2, 2)
+    )
+  }
   
   vcov_N <- outer(sqrt(N_hat), sqrt(N_hat)) * Sigma_NN
   
@@ -334,7 +342,7 @@ confint.carryover_fit <- function(object, parm = c("N1", "N2"), level = 0.95, ty
     var_logit <- 1 / ((N_hat / N_tot)^2 * (1 - N_hat / N_tot)^2) * 1 / (N_tot^2) * se^2
     lower <- N_tot * (plogis(qlogis(N_hat / N_tot) - z * sqrt(var_logit)))
     upper <- N_tot * (plogis(qlogis(N_hat / N_tot) + z * sqrt(var_logit)))
-    if(object$truncated[2] == TRUE){
+    if(isTRUE(object$truncated[2])){
       #If hat(N2) = Ntot2, the logit interval falls apart for N2.  Fall back on the 
       #Wald interval in that case.
       lower[2] <- N_hat[2] - z * se[2]

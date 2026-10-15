@@ -5,7 +5,7 @@
 #L: history length.  K+1 for cohort 1, K for cohort 2.
 
 hist_mat <- function(L){
-  as.matrix(expand.grid(rep(list(c(1, 0)), L)))[, L:1]
+  as.matrix(expand.grid(rep(list(c(1, 0)), L)))[, L:1, drop = FALSE]
 }
 
 

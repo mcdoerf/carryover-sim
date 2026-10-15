@@ -47,7 +47,7 @@ performance <- function(fits, truth_res){
       coverage = mean(lower <= truth & upper >= truth, na.rm = TRUE),
       coverage_mcse = sqrt(coverage * (1 - coverage) / n()),
       width = mean(upper - lower, na.rm = TRUE),
-      width_mcse = sd(upper - lower) / sqrt(n()),
+      width_mcse = sd(upper - lower, na.rm = TRUE) / sqrt(n()),
       rel_width = mean(upper - lower, na.rm = TRUE) / mean(truth, na.rm = TRUE),
       .groups = "drop"
       )

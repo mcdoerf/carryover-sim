@@ -4,6 +4,7 @@
 
 
 # scenario_seed() --------------------------------------------------------------
+#File dependencies: be sure to  load package(tictoc).
 
 ##Creates a seed for a simulation scenario.
 scenario_seed <- function(base_seed, scenario_id){
@@ -59,14 +60,17 @@ generate_scenario <- function(design_row, R, base_seed) {
 
 fit_scenario <- function(sim, methods){
   datasets <- sim$datasets
+  stopifnot("sim$seed is missing; regenerate the data with generate_scenario()" = !is.null(sim$seed))
+  fit_seeds <- rep_seeds(parallel::nextRNGSubStream(sim$seed), length(datasets))
   row <- sim$design_row
   
   results <- vector(mode = "list", length = length(datasets) * length(methods))
 
   for (i in 1:length(datasets)){
     for(j in 1:length(methods)){
-      tic("Method time")
+      assign(".Random.seed", fit_seeds[[i]], envir = globalenv())
       
+      tic("Method time")
       method_result <- tryCatch(
         cbind(methods[[j]](datasets[[i]], row), error = NA_character_),
         error = function(e) data.frame(target = NA, method = NA,
