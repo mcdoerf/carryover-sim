@@ -9,7 +9,12 @@
 #1/\sqrt{N_2} (\hat{N}_2 - N_2).
 # carry is a vector of length K indicating which non-identifiable parameters carry-over from population 1.
 
-sigma_NN <- function(chain1, chain2, N1, N2, K, psi, carry){
+#2026-10-20 update: added an e argument as well to sigma_NN.  The e is for computing
+#sigma_NN for the full likleihood MLE, 
+# e: extra information for N1 from the anchor's non-cases (full likelihood only),
+#    e = rho * psi / ((1 - rho) * (1 - psi)), rho = N1 / N_tot1.
+#    In the N1^{-1/2}(N1_hat - N1) scale used by D. Use e = 0 for the conditional fit.
+sigma_NN <- function(chain1, chain2, N1, N2, K, psi, carry, e = 0){
   
   stopifnot(
     "K must be a single positive integer" =
@@ -24,7 +29,9 @@ sigma_NN <- function(chain1, chain2, N1, N2, K, psi, carry){
     "psi must be a single number in (0, 1)" =
       is.numeric(psi) && length(psi) == 1 && psi > 0 && psi < 1,
     "carry must be a 0/1 vector of length K with at least one 1" =
-      length(carry) == K && all(carry %in% c(0, 1)) && any(carry == 1)
+      length(carry) == K && all(carry %in% c(0, 1)) && any(carry == 1),
+    "e must be a single non-negative number" =
+      is.numeric(e) && length(e) == 1 && is.finite(e) && e >= 0
   )
   
   shared <- carry == 1
@@ -86,6 +93,7 @@ sigma_NN <- function(chain1, chain2, N1, N2, K, psi, carry){
   B <- cbind(B1, B2)
   
   #Calculate and return SigmaNN
+  D[1,1] <- D[1,1] + e
   
   Sigma_NN <- solve(D - t(B) %*% A %*% B)
   
